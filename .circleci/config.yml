@@ -1,0 +1,41 @@
+version: 2.1
+
+orbs:
+  aws-eks: circleci/aws-eks@0.2.0
+  aws-ecr: circleci/aws-ecr@3.1.0
+  kubernetes: circleci/kubernetes@0.3.0
+  helm: circleci/helm@0.2.3
+
+jobs:
+  push-image-install-helm-chart:
+    executor: aws-eks/python3
+    steps:
+      - setup_remote_docker
+      - checkout 
+      - run:
+          name: install dockerlint
+          command: |
+            sudo apt-get install npm
+            sudo npm install -g dockerlint
+            dockerlint Dockerfile
+      - aws-ecr/build-and-push-image:
+          account-url: AWS_ECR_URL
+          region: AWS_DEFAULT_REGION
+          repo: << Repository Name >>
+          dockerfile: Dockerfile
+          tag: "v1"
+      - aws-eks/update-kubeconfig-with-authenticator:
+          cluster-name: << Cluster Name >>
+          install-kubectl: true
+      - helm/install-helm-on-cluster:
+          enable-cluster-wide-admin-access: false
+      - run:
+          name: upgrade helm chart
+          command: |
+            helm upgrade << Chart Name >> .
+
+workflows:
+  nginx_deployment:
+    jobs:
+      - push-image-install-helm-chart:
+          name: push-image-install-helm-chart
